@@ -51,7 +51,7 @@ class TimetablingApp:
         self.graph_frame.grid(row=0, column=1, rowspan=2, padx=10, pady=5, sticky="nsew")
         
         # Create matplotlib figure
-        self.figure, self.ax = plt.subplots(figsize=(6, 6))
+        self.figure, self.ax = plt.subplots(figsize=(4, 4))
         self.canvas = FigureCanvasTkAgg(self.figure, master=self.graph_frame)
         self.canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
 
@@ -60,7 +60,6 @@ class TimetablingApp:
         if course and course not in self.courses:
             self.courses.append(course)
             self.course_entry.delete(0, tk.END)
-            # Update enrollment matrix
             if self.students:
                 for i in range(len(self.enrollment_matrix)):
                     self.enrollment_matrix[i].append(0)
@@ -71,21 +70,15 @@ class TimetablingApp:
         if student and student not in self.students:
             self.students.append(student)
             self.student_entry.delete(0, tk.END)
-            # Update enrollment matrix
             self.enrollment_matrix.append([0] * len(self.courses))
             self.update_matrix_view()
 
     def update_matrix_view(self):
-        # Clear existing matrix view
         for widget in self.matrix_frame.winfo_children():
             widget.destroy()
-
-        # Create headers
         ttk.Label(self.matrix_frame, text="Students/Courses").grid(row=0, column=0, padx=5, pady=5)
         for j, course in enumerate(self.courses):
             ttk.Label(self.matrix_frame, text=course).grid(row=0, column=j+1, padx=5, pady=5)
-
-        # Create checkbuttons for enrollment
         for i, student in enumerate(self.students):
             ttk.Label(self.matrix_frame, text=student).grid(row=i+1, column=0, padx=5, pady=5)
             for j in range(len(self.courses)):
@@ -99,44 +92,40 @@ class TimetablingApp:
 
     def generate_graph(self):
         self.graph.clear()
-        # Add nodes (courses)
         for course in self.courses:
             self.graph.add_node(course)
-        
-        # Add edges (conflicts between courses)
         for i in range(len(self.courses)):
             for j in range(i + 1, len(self.courses)):
-                # Check if any student is enrolled in both courses
                 for student_enrollments in self.enrollment_matrix:
                     if student_enrollments[i] and student_enrollments[j]:
                         self.graph.add_edge(self.courses[i], self.courses[j])
                         break
-
         self.draw_graph()
 
     def draw_graph(self):
         self.ax.clear()
-        pos = nx.spring_layout(self.graph)
+        pos = nx.spring_layout(self.graph, k=0.5, iterations=20)
         nx.draw(self.graph, pos, ax=self.ax, with_labels=True, 
-                node_color='lightblue', node_size=1500, font_size=8)
+                node_color='lightblue', node_size=500, font_size=8)
         self.canvas.draw()
 
     def greedy_coloring(self):
+        # Implementación del algoritmo greedy para colorear el grafo
         colors = {}
-        # Sort vertices by degree in descending order
+        # Ordenar los nodos (cursos) por grado de conexión (número de conexiones con otros cursos)
         vertices = sorted(self.graph.nodes(), key=lambda x: self.graph.degree(x), reverse=True)
         
         for vertex in vertices:
-            # Get colors of neighbors
+            # Obtener los colores asignados a los cursos vecinos (con conflictos)
             neighbor_colors = {colors.get(neighbor) 
                              for neighbor in self.graph.neighbors(vertex) 
                              if neighbor in colors}
             
-            # Find first available color
+            # Encontrar el primer color disponible (franja horaria)
             color = 0
             while color in neighbor_colors:
                 color += 1
-            colors[vertex] = color
+            colors[vertex] = color  # Asignar el color (franja horaria) al curso
             
         return colors
 
@@ -145,17 +134,17 @@ class TimetablingApp:
             messagebox.showwarning("Warning", "Please generate the graph first!")
             return
             
-        colors = self.greedy_coloring()
+        colors = self.greedy_coloring()  # Obtener la asignación de franjas horarias (colores) para los cursos
         
-        # Draw colored graph
+        # Dibujar el grafo coloreado según la asignación de franjas horarias
         self.ax.clear()
-        pos = nx.spring_layout(self.graph)
+        pos = nx.spring_layout(self.graph, k=0.5, iterations=20)
         nx.draw(self.graph, pos, ax=self.ax, with_labels=True,
                 node_color=[colors[node] for node in self.graph.nodes()],
-                node_size=1500, font_size=8, cmap=plt.cm.rainbow)
+                node_size=500, font_size=8, cmap=plt.cm.rainbow)
         self.canvas.draw()
         
-        # Show results
+        # Mostrar los resultados en una nueva ventana
         result_window = tk.Toplevel(self.root)
         result_window.title("Timetable Solution")
         result_window.geometry("400x400")
